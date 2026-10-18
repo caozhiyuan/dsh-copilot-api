@@ -1,6 +1,6 @@
 {
   "name": "dsh-copilot-api",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "DeepSeek Harness provider for a copilot-api gateway",
   "repository": {
     "type": "git",
