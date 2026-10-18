@@ -53,7 +53,7 @@ const fields = {
   apiKeyEnv: z.string().role("credential-ref"),
   protocol: z.union(["openai-responses", "anthropic-messages"]).default("openai-responses"),
   headers: z.dict(z.string()).default({}),
-  modelRefreshInterval: z.number().step(1).min(0).max(2_147_483_647).default(0),
+  modelRefreshInterval: z.number().step(1).min(0).max(2_147_483_647).default(120_000),
   modelOverrides: z.dict(z.object({
     name: z.string(),
     contextWindow: positive(),

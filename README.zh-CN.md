@@ -35,7 +35,7 @@ dsh plugin --profile web add dsh-copilot-api
     modelRefreshInterval: 120000
 ```
 
-`apiKey` 是凭据引用名。`apiKeyEnv` 也是引用名；两者同时填写时必须相同。`headers` 可以填写自定义请求头。`modelRefreshInterval` 单位是毫秒，默认 `0` 表示关闭定时刷新；示例中的 `120000` 表示每 2 分钟刷新。
+`apiKey` 是凭据引用名。`apiKeyEnv` 也是引用名；两者同时填写时必须相同。`headers` 可以填写自定义请求头。`modelRefreshInterval` 单位是毫秒，默认 `120000` 表示每 2 分钟自动刷新；设为 `0` 可关闭定时刷新。
 
 ## 从源码安装
 
