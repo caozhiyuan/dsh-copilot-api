@@ -28,7 +28,7 @@ it.each(['openai-responses', 'anthropic-messages'] as const)('keeps %s retry hea
   await mountAgentLoopTestDependencies(ctx)
   await ctx.plugin(Retry)
   await ctx.plugin(Copilot, {
-    baseURL: server.url, protocol, apiKey: 'COPILOT_AGENT_KEY', sessionAffinity: true,
+    baseURL: server.url, protocol, apiKey: 'COPILOT_AGENT_KEY',
     headers: { 'X-Custom-Header': 'agent-custom' },
     retryPolicy: { mode: 'normal', maxRetries: 1, backoff: { initialDelayMs: 1, maxDelayMs: 1, jitterRatio: 0 } },
   })

@@ -60,6 +60,7 @@ export interface Gateway {
   requests: WireRequest[]
   models: unknown
   modelStatus: number
+  modelGate?: Promise<void>
   inferenceStatus: number
   failNext: number
   tool: boolean
@@ -78,13 +79,14 @@ export async function gateway(protocol: Protocol): Promise<Gateway> {
   server = createServer((request, response) => {
     const data: Buffer[] = []
     request.on('data', (chunk: Buffer) => { data.push(chunk) })
-    request.on('end', () => {
+    request.on('end', async () => {
       state.requests.push({
         path: request.url ?? '', method: request.method ?? '', headers: request.headers,
         body: data.length === 0 ? {} : JSON.parse(Buffer.concat(data).toString('utf8')) as Record<string, unknown>,
       })
       response.on('close', () => { state.closed++ })
       if (request.method === 'GET') {
+        await state.modelGate
         response.writeHead(state.modelStatus, { 'content-type': 'application/json' })
         response.end(JSON.stringify(state.models))
         return

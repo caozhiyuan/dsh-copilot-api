@@ -69,6 +69,7 @@ export function apply(ctx: Context, references: Config): void {
   })
   ctx.effect(() => {
     const refresh = () => { void catalog.refresh().catch(() => { /* The catalog reports this failure once. */ }) }
+    const retry = () => { void catalog.retry().catch(() => { /* The catalog reports this failure once. */ }) }
     refresh()
     const timer = config.modelRefreshInterval === 0 ? undefined : setInterval(refresh, config.modelRefreshInterval)
     timer?.unref()
@@ -78,8 +79,19 @@ export function apply(ctx: Context, references: Config): void {
       overrides = config.modelOverrides
       refresh()
     })
+    const unwatchCredential = ctx.on("credentials/reference-updated", ref => {
+      if (ref === keyRef) retry()
+    })
+    let credentials = ctx.get("credentials")
+    const credentialScope = ctx.inject(["credentials"], scope => {
+      if (credentials === scope.credentials) return
+      credentials = scope.credentials
+      retry()
+    })
     return async () => {
       unwatch()
+      unwatchCredential()
+      await credentialScope.dispose()
       clearInterval(timer)
       await catalog.dispose()
     }

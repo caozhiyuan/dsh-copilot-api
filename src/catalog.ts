@@ -54,6 +54,7 @@ export class CopilotModelCatalog {
   private readonly emptyProfiles: ReadonlyMap<string, ResolvedPiAiProviderProfile> = new Map()
   private snapshot: { models: readonly DiscoveredModel[]; profiles: ReadonlyMap<string, ResolvedPiAiProviderProfile> } | undefined
   private inFlight: Promise<void> | undefined
+  private failure: LlmError | undefined
 
   constructor(config: Settings, baseURL: string, resolveKey: () => Promise<string>, changed: (error?: string) => void, warn: (message: string) => void) {
     this.config = config
@@ -66,14 +67,27 @@ export class CopilotModelCatalog {
   get models(): readonly DiscoveredModel[] | undefined { return this.snapshot?.models }
 
   async ensure(signal?: AbortSignal): Promise<void> {
+    this.lifecycle.signal.throwIfAborted()
     signal?.throwIfAborted()
-    if (this.snapshot === undefined) await waitForDiscovery(this.refresh(), signal)
+    if (this.snapshot !== undefined) return
+    // Registry notifications only read state. Explicit refreshes own retries.
+    if (this.inFlight !== undefined) await waitForDiscovery(this.inFlight, signal)
+    else if (this.failure !== undefined) throw this.failure
+    else await waitForDiscovery(this.refresh(), signal)
   }
   refresh(signal?: AbortSignal): Promise<void> {
     this.lifecycle.signal.throwIfAborted()
     signal?.throwIfAborted()
     this.inFlight ??= this.load().finally(() => { this.inFlight = undefined })
     return signal === undefined ? this.inFlight : waitForDiscovery(this.inFlight, signal)
+  }
+  /** A credential update must outlive discovery that captured the previous key. */
+  async retry(): Promise<void> {
+    if (this.inFlight !== undefined) {
+      try { await this.inFlight }
+      catch { /* Retry also replaces a failed attempt. */ }
+    }
+    await this.refresh()
   }
   private async load(): Promise<void> {
     const config = { ...this.config }
@@ -89,10 +103,15 @@ export class CopilotModelCatalog {
         await response.body?.cancel()
         throw new LlmError(`copilot-api-provider: model discovery failed (HTTP ${response.status}); check the gateway and credential`, "MODEL_DISCOVERY_FAILED")
       }
-      const models = parseModels(await boundedJson(response, config.maxModelResponseBytes), config)
-      const profiles = models.length === 0 ? new Map() : new Map([["copilot-api", createProfile(config, this.baseURL, models)]])
+      const payload = await boundedJson(response, config.maxModelResponseBytes)
+      // Overrides are volatile: edits made during discovery belong to the new
+      // generation, while prepared calls keep their previous immutable profile.
+      const modelConfig = { ...config, modelOverrides: this.config.modelOverrides }
+      const models = parseModels(payload, modelConfig)
+      const profiles = models.length === 0 ? new Map() : new Map([["copilot-api", createProfile(modelConfig, this.baseURL, models)]])
       signal.throwIfAborted()
       this.snapshot = { models, profiles }
+      this.failure = undefined
       this.changed()
     } catch (error) {
       if (this.lifecycle.signal.aborted) throw new LlmError("copilot-api-provider: plugin disposed", "ABORTED")
@@ -100,8 +119,12 @@ export class CopilotModelCatalog {
         "copilot-api-provider: model discovery failed; check the gateway URL, credential, and model metadata", "MODEL_DISCOVERY_FAILED",
       )
       const message = this.snapshot === undefined ? failure.message : `${failure.message}; using the last successful catalog`
-      this.warn(message)
-      this.changed(message)
+      const previous = this.failure
+      this.failure = failure
+      if (previous?.message !== failure.message) {
+        this.warn(message)
+        this.changed(message)
+      }
       if (this.snapshot === undefined) throw failure
     }
   }

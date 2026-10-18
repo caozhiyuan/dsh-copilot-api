@@ -56,8 +56,14 @@ export function modelCases({ describe, expect, it }) {
     })
   })
   describe("copilot-api header precedence", () => {
+    it.each([undefined, false, true])("always sends affinity, including with the obsolete option %s", legacy => {
+      const config = Config(legacy === undefined ? {} : { sessionAffinity: legacy })
+      const headers = gatewayHeaders(config, "key", { "x-client-request-id": "current-session" }, { sessionId: "current-session" })
+      expect(headers.get("x-session-affinity")).toBe("current-session")
+      expect(headers.get("x-client-request-id")).toBe("current-session")
+    })
     it("protects reserved headers, preserves SDK requirements and merges static headers case-insensitively", () => {
-      const config = Config({ sessionAffinity: true, protocol: "anthropic-messages", headers: {
+      const config = Config({ protocol: "anthropic-messages", headers: {
         AUTHORIZATION: "wrong", "X-API-KEY": "wrong", "Anthropic-Version": "wrong", "User-Agent": "claude-cli/wrong",
         "Content-Type": "text/plain", "X-Session-Affinity": "wrong", "x-deepseek-harness-session-id": "wrong",
         "X-Custom-Header": "custom", "Anthropic-Beta": "custom-beta,required-beta",

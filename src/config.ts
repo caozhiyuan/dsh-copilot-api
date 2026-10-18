@@ -27,7 +27,6 @@ export interface Settings {
   protocol: Protocol
   headers: Record<string, string>
   modelRefreshInterval: number
-  sessionAffinity: boolean
   modelOverrides: Readonly<Record<string, ModelOverride>>
   defaultContextWindow: number
   defaultMaxTokens: number
@@ -55,7 +54,6 @@ const fields = {
   protocol: z.union(["openai-responses", "anthropic-messages"]).default("openai-responses"),
   headers: z.dict(z.string()).default({}),
   modelRefreshInterval: z.number().step(1).min(0).max(2_147_483_647).default(0),
-  sessionAffinity: z.boolean().default(false),
   modelOverrides: z.dict(z.object({
     name: z.string(),
     contextWindow: positive(),

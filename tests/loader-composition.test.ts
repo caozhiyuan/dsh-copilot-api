@@ -62,6 +62,7 @@ it.each([['TypeScript source', SourcePlugin], ['built JavaScript', BuiltPlugin]]
   ctx.loader.internal = internal
   await profileComposition(ctx, root, configPath)
   const catalog = await buildModelCatalog(ctx, { provider: 'copilot-api', model: MODEL_ID })
+  expect(catalog.failures).toEqual([])
   expect(catalog.groups[0]?.models[0]?.reasoning?.efforts.map(effort => effort.id)).toContain('xhigh')
   expect(ctx.llm.listConfigurableProviders()).toMatchObject([{
     provider: 'copilot-api', settingsNs: 'copilot-api-provider', settingsPath: [],
@@ -72,9 +73,19 @@ it.each([['TypeScript source', SourcePlugin], ['built JavaScript', BuiltPlugin]]
   })
   const page = ctx.settings.describe().find(row => row.ns === 'copilot-api-provider')
   expect(page).toBeDefined()
-  await ctx.settings.mutate('copilot-api-provider', [{ op: 'set', path: ['modelOverrides', MODEL_ID], value: {
-    name: 'Updated live', input: ['text'], reasoningEfforts: { low: 'low' },
-  } }], page?.revision)
+  const gate = Promise.withResolvers<void>()
+  server.modelGate = gate.promise
+  const count = server.requests.length
+  const refresh = ctx.llm.discoverModels('copilot-api-provider', { baseURL: server.url })
+  try {
+    await vi.waitFor(() => { expect(server!.requests).toHaveLength(count + 1) })
+    await ctx.settings.mutate('copilot-api-provider', [{ op: 'set', path: ['modelOverrides', MODEL_ID], value: {
+      name: 'Updated live', input: ['text'], reasoningEfforts: { low: 'low' },
+    } }], page?.revision)
+  } finally {
+    gate.resolve()
+    await refresh
+  }
   await vi.waitFor(async () => {
     expect((await ctx!.llm.resolveModelInfo('copilot-api', MODEL_ID)).reasoning?.efforts.map(effort => effort.id)).toEqual(['low'])
   })

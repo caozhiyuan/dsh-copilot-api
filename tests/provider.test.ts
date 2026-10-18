@@ -122,8 +122,8 @@ describe.each(['openai-responses', 'anthropic-messages'] as const)('copilot-api 
       .rejects.toMatchObject({ code: 'UNSUPPORTED_REASONING_EFFORT' })
   })
 
-  it('keeps main, child, and unrelated sessions isolated with optional affinity', async () => {
-    const { ctx, server } = await host(protocol, { sessionAffinity: true })
+  it('keeps main, child, and unrelated sessions isolated with affinity', async () => {
+    const { ctx, server } = await host(protocol)
     await Promise.all(['main-session', 'child-session', 'other-session'].map(id => assemble(ctx, request(id))))
     const sent = server.requests.filter(row => row.method === 'POST')
     expect(new Set(sent.map(row => row.headers['x-deepseek-harness-session-id']))).toEqual(new Set(['main-session', 'child-session', 'other-session']))

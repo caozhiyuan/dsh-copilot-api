@@ -2,7 +2,7 @@
 
 [中文](zh-CN/models.md)
 
-The Models card lists discovered model IDs, names, image capability, context and output capacity, and the exact efforts available in the conversation selector. Models are fetched on startup, on first use, and from **Refresh models**. `modelRefreshInterval` is milliseconds; the default `0` disables periodic refresh. A failed refresh keeps the last successful directory. Calls that are already prepared or running keep the models and transport settings they captured.
+The Models card lists discovered model IDs, names, image capability, context and output capacity, and the exact efforts available in the conversation selector. Models are fetched on startup, on first use, and from **Refresh models**. `modelRefreshInterval` is milliseconds; the default `0` disables periodic refresh. A failed refresh keeps the last successful directory. An initial failure is cached so reading the model settings or selector does not repeatedly contact the gateway. Refresh explicitly, update the credential, or enable periodic refresh to retry. Calls that are already prepared or running keep the models and transport settings they captured.
 
 | Gateway field | Harness/pi-ai metadata |
 | --- | --- |

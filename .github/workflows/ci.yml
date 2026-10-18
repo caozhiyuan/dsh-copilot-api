@@ -23,11 +23,24 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
+      - name: Check out Harness test helpers
+        uses: actions/checkout@v4
+        with:
+          repository: deepseek-ai/deepseek-harness
+          ref: 687f282e8625c6b8d11ff58211a90524be2e4317
+          path: harness-source
+          persist-credentials: false
+
       - name: Run type check
         run: bun run typecheck
 
       - name: Run tests
         run: bun test tests/models.bun.test.ts
+
+      - name: Run integration and browser tests
+        run: bun run test --coverage
+        env:
+          HARNESS_SOURCE: ${{ github.workspace }}/harness-source
 
       - name: Build
         run: bun run build
