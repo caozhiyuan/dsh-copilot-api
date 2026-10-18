@@ -1,10 +1,12 @@
 import { spawnSync } from "node:child_process"
+import { readFileSync } from "node:fs"
 import { createRequire } from "node:module"
 import { dirname, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 import { build } from "esbuild"
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..")
+const packageName = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")).name
 const require = createRequire(import.meta.url)
 const tsc = require.resolve("typescript/bin/tsc")
 for (const args of [
@@ -28,6 +30,6 @@ await build({
   target: "es2022",
   external: ["react"],
   sourcemap: true,
-  banner: { js: 'window.__ModuleLoader__.load({ id: "copilot-api-provider", factory: (require) => { "use strict"; const module = { exports: {} }; const exports = module.exports;' },
+  banner: { js: `window.__ModuleLoader__.load({ id: ${JSON.stringify(packageName)}, factory: (require) => { "use strict"; const module = { exports: {} }; const exports = module.exports;` },
   footer: { js: "return module.exports; } });" },
 })

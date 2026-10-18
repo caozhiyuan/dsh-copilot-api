@@ -1,7 +1,17 @@
 {
-  "name": "copilot-api-provider",
+  "name": "dsh-copilot-api",
   "version": "0.1.0",
-  "description": "DeepSeek Harness provider for copilot-api, written in TypeScript and distributed as JavaScript",
+  "description": "DeepSeek Harness provider for a copilot-api gateway",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/caozhiyuan/dsh-copilot-api.git"
+  },
+  "keywords": [
+    "dsh-plugin",
+    "deepseek-harness",
+    "copilot-api",
+    "cordis"
+  ],
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -33,6 +43,9 @@
     }
   },
   "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
   "files": [
     "dist/",
     "cordis.patch.yml",
@@ -76,6 +89,7 @@
     "typecheck": "tsc --project tsconfig.json --noEmit && tsc --project tsconfig.client.json"
   },
   "engines": {
-    "node": ">=22.13.0"
+    "node": ">=22.13.0",
+    "dsh": ">=0.2.1-rc.2 <0.3.0"
   }
 }

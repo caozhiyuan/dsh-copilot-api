@@ -29,3 +29,13 @@ it("loads the built Host plugin in plain Node without a TypeScript loader", () =
   expect(result.error).toBeUndefined()
   expect(result.status, result.stderr).toBe(0)
 })
+
+it("publishes a Harness bundle addressed by the npm package name", async () => {
+  const manifest = JSON.parse(await readFile(new URL("package.json", root), "utf8"))
+  const patch = await readFile(new URL("cordis.patch.yml", root), "utf8")
+  const client = await readFile(new URL("dist/client.js", root), "utf8")
+  expect(manifest.name).toBe("dsh-copilot-api")
+  expect(manifest.dsh.bundle.patch).toBe("./cordis.patch.yml")
+  expect(patch).toMatch(/id: copilot-api-provider\s+name: dsh-copilot-api/u)
+  expect(client).toContain(`id: ${JSON.stringify(manifest.name)}`)
+})

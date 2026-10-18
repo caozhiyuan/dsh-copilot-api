@@ -1,23 +1,33 @@
-# DeepSeek Harness：copilot-api-provider
+# dsh-copilot-api
 
 [English](README.md)
 
 独立插件包，采用**严格 TypeScript 源码，构建为 JavaScript 交付**，复用 Harness 的 `PiAiAdapter`、LLM Runtime 和 pi-ai 的 Responses/Messages 实现。Harness 加载普通 JS，不需要 TypeScript loader。无需修改 Harness 或 copilot-api 服务端。验证版本为 Harness `0.2.1-rc.2`（`687f282e8625`）和其使用的 pi-ai `1.1.0`。
 
-## 安装与配置
+## 安装
 
-从源码安装时，先安装开发依赖并构建一次，再将目录加入已有 Harness profile：
+把已发布的包安装到已有 Harness profile。包内的 `cordis.patch.yml` 会插入 Provider，profile 不需要再加配置项：
 
 ```sh
-cd /absolute/path/deepseek-harness
+dsh plugin --profile web add dsh-copilot-api
+```
+
+首次安装后重启 Harness。条目 ID 仍是 `copilot-api-provider`。默认地址是 `http://localhost:4141`，协议是 `openai-responses`，凭据引用是 `GITHUB_COPILOT_API_KEY`。请在模型设置卡片、Harness 凭据或对应启动环境中保存密钥。插件不会从配置里读取密钥明文。
+
+`npm pack` 和 `npm publish` 会执行 `prepack`，把构建后的 `dist/` 打进发布包。从 registry 安装时不需要允许构建脚本。
+
+从源码安装时，先构建一次，再加入该目录：
+
+```sh
+cd /absolute/path/dsh-copilot-api
 bun install
 bun run build
-dsh plugin --profile web add /absolute/path/deepseek-harness
+dsh plugin --profile web add /absolute/path/dsh-copilot-api
 ```
 
 构建会分别检查 Host 与浏览器类型，将 Host JS 和类型声明输出到 `dist/`，并将浏览器入口打包为 Harness 要求的模块工厂，继续使用其共享 React。构建产物不提交到仓库。`npm pack` 自动执行构建，包内包含构建后的 JS、类型声明和展示资源；使用该分发包时无需安装 TypeScript。
 
-插件包会插入 `copilot-api-provider` 条目。在该 profile 的 `cordis.patch.yml` 中添加覆盖配置；保留此条目 ID，供模型设置插槽识别：
+发布包已经插入条目 ID `copilot-api-provider`，模型设置插槽依赖这个 ID。只有要修改默认值时，才在 profile 的 `cordis.patch.yml` 中覆盖：
 
 ```yaml
 - id: copilot-api-provider

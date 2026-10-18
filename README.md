@@ -1,23 +1,33 @@
-# copilot-api-provider for DeepSeek Harness
+# dsh-copilot-api
 
 [中文](README.zh-CN.md)
 
 An independent Harness bundle with **strict TypeScript source and built JavaScript distribution**. Harness loads ordinary JS, with no TypeScript loader required. No Harness fork, gateway patch, or duplicated Responses/Messages converter is required. Tested against Harness `0.2.1-rc.2` (`687f282e8625`) and its pi-ai `1.1.0`.
 
-## Install and configure
+## Install
 
-For a source checkout, install the development dependencies and build once before adding the directory to your existing Harness profile:
+Install the published package into an existing Harness profile. Its own `cordis.patch.yml` inserts the provider, so the profile does not need another configuration entry:
 
 ```sh
-cd /absolute/path/deepseek-harness
+dsh plugin --profile web add dsh-copilot-api
+```
+
+Restart Harness after the first install. The entry id stays `copilot-api-provider`. Defaults are `http://localhost:4141`, protocol `openai-responses`, and credential reference `GITHUB_COPILOT_API_KEY`. Store the key through the Models card, Harness credentials, or that launch environment. The plugin does not read a literal key from configuration.
+
+`npm pack` and `npm publish` run `prepack`, which builds `dist/` into the package. A registry install does not need a build allowance.
+
+For a source checkout, build once and add that directory:
+
+```sh
+cd /absolute/path/dsh-copilot-api
 bun install
 bun run build
-dsh plugin --profile web add /absolute/path/deepseek-harness
+dsh plugin --profile web add /absolute/path/dsh-copilot-api
 ```
 
 `bun run build` checks Host and browser types separately, emits Host JS and declarations into `dist/`, and bundles the browser entry into Harness's module-factory format using its shared React. Generated files are not committed. `npm pack` runs the build automatically and includes the built JS/declarations and display resources; users of that package do not need TypeScript installed.
 
-The bundle inserts the `copilot-api-provider` entry. Add this override to that profile's `cordis.patch.yml` (keep this entry ID for the companion Models card):
+The published bundle already inserts entry id `copilot-api-provider`. Keep that id if you override it; the Models card uses it. Add a profile `cordis.patch.yml` entry only to change a default:
 
 ```yaml
 - id: copilot-api-provider

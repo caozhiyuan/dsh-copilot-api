@@ -17,6 +17,9 @@ const en = {
 }
 type CopyKey = keyof typeof en
 interface DisplayModel extends LlmDiscoveredModel { readonly efforts: readonly string[] }
+interface CatalogModel { readonly id: string; readonly reasoning?: { readonly efforts: readonly { readonly id: string }[] } }
+interface CatalogGroup { readonly id: string; readonly models: readonly CatalogModel[] }
+interface CatalogFailure { readonly id: string; readonly message: string }
 interface ModelCardInjected {
   t: (key: CopyKey) => string
   refresh: (settingsNs: string, baseURL?: string) => Promise<string | undefined>
@@ -95,14 +98,14 @@ async function readModels(ctx: Context, settingsNs: string): Promise<RemoteResul
   ])
   if (!discovery.ok) return discovery
   if (!catalog.ok) return catalog
-  const selectable = catalog.value.groups.find(group => group.id === "copilot-api")
-  const failure = catalog.value.failures.find(group => group.id === "copilot-api")
+  const selectable = catalog.value.groups.find((group: CatalogGroup) => group.id === "copilot-api")
+  const failure = catalog.value.failures.find((group: CatalogFailure) => group.id === "copilot-api")
   if (failure) return { ok: false, error: Object.assign(new Error(failure.message), {
     name: "RemoteError", code: "copilot-api/catalog" as const, details: {}, isDSHRemoteError: true as const,
   }) }
-  return { ok: true, value: discovery.value.map(model => ({
+  return { ok: true, value: discovery.value.map((model: LlmDiscoveredModel) => ({
     ...model,
-    efforts: selectable?.models.find(item => item.id === model.id)?.reasoning?.efforts.map(effort => effort.id) ?? [],
+    efforts: selectable?.models.find((item: CatalogModel) => item.id === model.id)?.reasoning?.efforts.map((effort: { id: string }) => effort.id) ?? [],
   })) }
 }
 
@@ -118,7 +121,7 @@ export function apply(ctx: Context): void {
       const disposers = [
         ctx.remote.$on("llm/adapters-updated", changed),
         ctx.remote.$on("credentials/reference-updated", changed),
-        ctx.on("connection/reset", changed),
+        (ctx.on as (name: "connection/reset", listener: () => void) => () => boolean)("connection/reset", changed),
       ]
       signal.addEventListener("abort", changed, { once: true })
       try {

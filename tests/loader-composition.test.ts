@@ -36,7 +36,7 @@ it.each([['TypeScript source', SourcePlugin], ['built JavaScript', BuiltPlugin]]
   await writeFile(configPath, [
     '- id: llm', "  name: test-llm-service",
     '- id: credentials', "  name: '@deepseek-ai/dsh-credentials-local'", '  config:', `    path: ${JSON.stringify(credentialPath)}`,
-    '- id: copilot-api-provider', "  name: 'copilot-api-provider'", '  config:',
+    '- id: copilot-api-provider', "  name: 'dsh-copilot-api'", '  config:',
     `    baseURL: ${server.url}`, '    apiKey: COPILOT_LOADER_KEY', '    protocol: openai-responses',
     '    headers:', '      X-Custom-Header: loader-custom', '',
   ].join('\n'))
@@ -46,7 +46,7 @@ it.each([['TypeScript source', SourcePlugin], ['built JavaScript', BuiltPlugin]]
   ctx.loader.builtins.include = Include
   const modules = new Map<string, unknown>([
     ['test-llm-service', LlmRuntime], ['@deepseek-ai/dsh-credentials-local', LocalCredentials],
-    ['copilot-api-provider', Copilot],
+    ['dsh-copilot-api', Copilot],
   ])
   const internal: ModuleLoaderV2 = {
     version: 'v2', loadCache: new Map(),
