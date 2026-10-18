@@ -2,6 +2,8 @@
 
 [中文](README.zh-CN.md)
 
+中文说明：这是 DeepSeek Harness 的 copilot-api 网关插件。执行 `dsh plugin --profile web add dsh-copilot-api` 即可安装，profile 里不用另加配置。默认地址是 `http://localhost:4141`，协议是 `openai-responses`，凭据引用是 `GITHUB_COPILOT_API_KEY`。完整说明见 [中文文档](README.zh-CN.md)。
+
 An independent Harness bundle with **strict TypeScript source and built JavaScript distribution**. Harness loads ordinary JS, with no TypeScript loader required. No Harness fork, gateway patch, or duplicated Responses/Messages converter is required. Tested against Harness `0.2.1-rc.2` (`687f282e8625`) and its pi-ai `1.1.0`.
 
 ## Install

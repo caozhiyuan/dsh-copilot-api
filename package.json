@@ -1,7 +1,7 @@
 {
   "name": "dsh-copilot-api",
-  "version": "0.1.0",
-  "description": "DeepSeek Harness provider for a copilot-api gateway",
+  "version": "0.1.1",
+  "description": "DeepSeek Harness 的 copilot-api 网关插件。DeepSeek Harness provider for a copilot-api gateway.",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/caozhiyuan/dsh-copilot-api.git"
