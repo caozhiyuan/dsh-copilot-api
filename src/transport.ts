@@ -33,7 +33,7 @@ export function gatewayHeaders(config: Settings, apiKey: string, sdkHeaders?: He
   if (options?.sessionId !== undefined) {
     const sessionId = String(options.sessionId)
     headers.set("x-deepseek-harness-session-id", sessionId)
-    if (config.sessionAffinity) headers.set("x-session-affinity", sessionId)
+    headers.set("x-session-affinity", sessionId)
   }
   return headers
 }

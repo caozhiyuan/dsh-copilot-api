@@ -105,7 +105,7 @@ describe.each(['openai-responses', 'anthropic-messages'] as const)('copilot-api 
       'x-custom-header': 'custom-value', 'user-agent': userAgent(), 'content-type': 'application/json',
       'x-deepseek-harness-session-id': 'main-session',
     })
-    expect(sent?.headers['x-session-affinity']).toBeUndefined()
+    expect(sent?.headers['x-session-affinity']).toBe('main-session')
     expect(sent?.body.model).toBe(MODEL_ID)
     if (protocol === 'openai-responses') {
       expect(sent?.headers.authorization).toBe('Bearer gateway-secret')
