@@ -46,10 +46,12 @@ async function browser(built = false) {
     remote: {
       $on: subscribe,
       credentials: { set: vi.fn(async () => ({ ok: true })) },
-      llm: { discoverModels: vi.fn(async () => ({ ok: true, value: [model] })) },
-      session: { modelCatalog: vi.fn(async () => ({ ok: true, value: { groups: [{
-        id: "copilot-api", models: [{ id: model.id, reasoning: { efforts: [{ id: "high" }, { id: "max" }] } }],
-      }], failures: [] } })) },
+      llm: {
+        discoverModels: vi.fn(async () => ({ ok: true, value: [model] })),
+        listConfigurableProviders: vi.fn(async () => ({ ok: true, value: [{
+          provider: "copilot-api", settingsNs: "copilot-api-provider", defaultBaseURL: "https://gateway.example/custom",
+        }] })),
+      },
     },
   }
   plugin.apply(ctx)
@@ -68,13 +70,15 @@ it.each([false, true])("opens the model resource with real Cordis injection (bui
     // the injection guard that rejected ctx.remote in the shipped browser.
     await ctx.plugin({ apply(provider) {
       for (const name of ["slots", "locale", "resources", "remote"]) provider.reflect.provide(name, client.ctx[name])
-      for (const name of ["llm", "session", "credentials"]) provider.reflect.provide(`remote.${name}`, client.ctx.remote[name])
+      for (const name of ["llm", "credentials"]) provider.reflect.provide(`remote.${name}`, client.ctx.remote[name])
     } })
     await ctx.plugin(client.plugin)
     stream = client.resource.open("dsh-resource://copilot-api-models/copilot-api-provider", { signal: controller.signal })
-    expect((await stream.next()).value).toMatchObject({ ok: true, value: [{ efforts: ["high", "max"], inputModalities: ["text", "image"] }] })
+    expect((await stream.next()).value).toMatchObject({ ok: true, value: [{ id: client.model.id }] })
     const card = client.seat.inject()
     expect(await card.refresh("copilot-api-provider", "http://localhost:4141/v1")).toBeUndefined()
+    expect(await card.refresh("copilot-api-provider")).toBeUndefined()
+    expect(client.ctx.remote.llm.listConfigurableProviders).toHaveBeenCalledOnce()
     expect(await card.storeKey("GITHUB_COPILOT_API_KEY", "test-key")).toBeUndefined()
     const waiting = stream.next()
     client.emit("llm/adapters-updated")
@@ -93,19 +97,19 @@ it("loads the compiled Harness browser factory using only shared React", async (
   expect(typeof Component).toBe("function")
   const controller = new AbortController()
   const stream = resource.open("dsh-resource://copilot-api-models/copilot-api-provider", { signal: controller.signal })
-  expect((await stream.next()).value).toMatchObject({ ok: true, value: [{ efforts: ["high", "max"] }] })
+  expect((await stream.next()).value).toMatchObject({ ok: true, value: [{ id: "codex/gpt-gateway" }] })
   controller.abort()
   expect((await stream.next()).done).toBe(true)
 })
 
-it("registers a normal provider-card slot and displays the actual selector efforts and image capability", async () => {
+it("registers a normal provider-card slot and shows only a model count", async () => {
   const { resource, seat, Component, dictionaries, ctx } = await browser()
   expect(seat).toMatchObject({ name: "settings.models.provider-card", key: "copilot-api-provider" })
-  expect(dictionaries.zh.image).toBe("图片")
+  expect(dictionaries.zh.count).toBe("已发现 {count} 个模型。")
   const controller = new AbortController()
   const stream = resource.open("dsh-resource://copilot-api-models/copilot-api-provider", { signal: controller.signal })
   const first = (await stream.next()).value
-  expect(first).toMatchObject({ ok: true, value: [{ efforts: ["high", "max"], inputModalities: ["text", "image"] }] })
+  expect(first).toMatchObject({ ok: true, value: [{ id: "codex/gpt-gateway" }] })
   const node = document.createElement("div")
   root = createRoot(node)
   const injected = seat.inject()
@@ -113,12 +117,12 @@ it("registers a normal provider-card slot and displays the actual selector effor
     ...injected, provider: { settingsNs: "copilot-api-provider", defaultBaseURL: "http://localhost:4141/v1" },
     useResource: () => ({ status: "live", value: first.value }),
   })))
-  expect(node.textContent).toContain("high, max")
-  expect(node.textContent).toContain("Image")
-  expect(node.textContent).toContain("codex/gpt-gateway")
-  expect(node.textContent).toContain("128000 / 16000")
+  expect(node.textContent).toContain("Models discovered: 1.")
+  expect(node.querySelector("table")).toBeNull()
+  expect(node.textContent).not.toContain("codex/gpt-gateway")
   await act(async () => node.querySelector("button")?.click())
   expect(ctx.remote.llm.discoverModels).toHaveBeenLastCalledWith("copilot-api-provider", { baseURL: "http://localhost:4141/v1" })
+  expect(ctx.remote.llm.listConfigurableProviders).not.toHaveBeenCalled()
   controller.abort()
   await stream.next()
 })
@@ -133,15 +137,11 @@ it("refreshes on provider invalidations, retains failures as resource frames, an
   ctx.remote.llm.discoverModels.mockResolvedValueOnce({ ok: false, error: { code: "offline", message: "Gateway offline" } })
   emit("llm/adapters-updated")
   expect((await waiting).value).toMatchObject({ ok: false, error: { message: "Gateway offline" } })
-  ctx.remote.session.modelCatalog.mockResolvedValueOnce({ ok: false, error: { code: "offline", message: "Catalog offline" } })
+  ctx.remote.llm.discoverModels.mockResolvedValueOnce({ ok: true, value: [] })
   emit("connection/reset")
-  expect((await stream.next()).value.ok).toBe(false)
-  ctx.remote.session.modelCatalog.mockResolvedValueOnce({ ok: true, value: { groups: [], failures: [{ id: "copilot-api", message: "Provider error" }] } })
+  expect((await stream.next()).value).toMatchObject({ ok: true, value: [] })
   emit("credentials/reference-updated")
-  expect((await stream.next()).value).toMatchObject({ ok: false, error: { message: "Provider error" } })
-  ctx.remote.session.modelCatalog.mockResolvedValueOnce({ ok: true, value: { groups: [], failures: [] } })
-  emit("connection/reset")
-  expect((await stream.next()).value).toMatchObject({ ok: true, value: [{ efforts: [] }] })
+  expect((await stream.next()).value).toMatchObject({ ok: true, value: [{ id: "codex/gpt-gateway" }] })
   const closing = stream.next()
   controller.abort()
   expect((await closing).done).toBe(true)
@@ -151,7 +151,7 @@ it("refreshes on provider invalidations, retains failures as resource frames, an
 it.each([
   { status: "loading", value: undefined, text: "Loading models" },
   { status: "live", value: [], text: "No models advertised" },
-  { status: "failed", value: [{ id: "text-only", name: "Text model", efforts: [] }], failure: { message: "Refresh failed" }, text: "Refresh failed" },
+  { status: "failed", value: [{ id: "text-only", name: "Text model" }], failure: { message: "Refresh failed" }, text: "Refresh failed" },
 ])("renders resource loading, empty and failure states", async state => {
   const { seat, Component } = await browser()
   const node = document.createElement("div")
@@ -160,7 +160,7 @@ it.each([
     ...seat.inject(), provider: { settingsNs: "copilot-api-provider" }, useResource: () => state,
   })))
   expect(node.textContent).toContain(state.text)
-  if (state.value?.length) expect(node.textContent).toContain("Not advertised")
+  if (state.value?.length) expect(node.textContent).toContain("Models discovered: 1.")
 })
 
 it("shows a manual refresh failure in the card", async () => {
@@ -173,6 +173,32 @@ it("shows a manual refresh failure in the card", async () => {
   })))
   await act(async () => node.querySelector("button")?.click())
   expect(node.textContent).toContain("Refresh refused")
+})
+
+it.each([undefined, "", " "])('uses the configured endpoint when the card URL is %s', async baseURL => {
+  const { ctx, seat, Component } = await browser()
+  const node = document.createElement("div")
+  root = createRoot(node)
+  await act(async () => root?.render(React.createElement(Component, {
+    ...seat.inject(), provider: { settingsNs: "copilot-api-provider", defaultBaseURL: baseURL },
+    useResource: () => ({ status: "live", value: [] }),
+  })))
+  await act(async () => node.querySelector("button")?.click())
+  expect(ctx.remote.llm.listConfigurableProviders).toHaveBeenCalledOnce()
+  expect(ctx.remote.llm.discoverModels).toHaveBeenCalledWith("copilot-api-provider", { baseURL: "https://gateway.example/custom" })
+})
+
+it("reports directory failures without sending an empty discovery request", async () => {
+  const { ctx, seat } = await browser()
+  ctx.remote.llm.listConfigurableProviders.mockResolvedValueOnce({ ok: false, error: { message: "Directory unavailable" } })
+  expect(await seat.inject().refresh("copilot-api-provider")).toBe("Directory unavailable")
+  expect(ctx.remote.llm.discoverModels).not.toHaveBeenCalled()
+})
+
+it("does not use another provider's endpoint when the namespace is missing", async () => {
+  const { ctx, seat } = await browser()
+  expect(await seat.inject().refresh("another-entry")).toContain("Save the provider connection settings")
+  expect(ctx.remote.llm.discoverModels).not.toHaveBeenCalled()
 })
 
 it("saves keys only through Harness credentials and clears the password field", async () => {

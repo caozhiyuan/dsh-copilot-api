@@ -15,6 +15,7 @@ import { buildModelCatalog } from 'harness-test/catalog'
 import { assemble } from './assemble.ts'
 import * as SourcePlugin from '../src/index.ts'
 import * as BuiltPlugin from '../dist/index.js'
+import * as Client from '../src/client/index.ts'
 import { gateway, MODEL_ID } from './fixtures.ts'
 import type { Gateway } from './fixtures.ts'
 
@@ -73,6 +74,26 @@ it.each([['TypeScript source', SourcePlugin], ['built JavaScript', BuiltPlugin]]
   })
   const page = ctx.settings.describe().find(row => row.ns === 'copilot-api-provider')
   expect(page).toBeDefined()
+  let card
+  const remote = async operation => {
+    try { return { ok: true, value: await operation() } }
+    catch (error) { return { ok: false, error } }
+  }
+  Client.apply({
+    effect: callback => callback(),
+    locale: { register: () => () => {}, bind: () => key => key },
+    resources: { register: () => () => {} },
+    slots: { inject: (_name, callback) => callback(), register: config => { card = config.inject(); return () => {} } },
+    remote: {
+      llm: {
+        discoverModels: (ns, request) => remote(() => ctx!.llm.discoverModels(ns, request)),
+        listConfigurableProviders: () => remote(() => ctx!.llm.listConfigurableProviders()),
+      },
+    },
+  })
+  const before = server.requests.filter(row => row.method === 'GET').length
+  expect(await card.refresh('copilot-api-provider')).toBeUndefined()
+  expect(server.requests.filter(row => row.method === 'GET')).toHaveLength(before + 1)
   const gate = Promise.withResolvers<void>()
   server.modelGate = gate.promise
   const count = server.requests.length

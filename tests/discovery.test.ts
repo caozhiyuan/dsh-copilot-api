@@ -2,7 +2,6 @@ import { Context } from '@deepseek-ai/cordis'
 import LlmRuntime from '@deepseek-ai/dsh-llm'
 import { credentialRef } from '@deepseek-ai/dsh-credentials'
 import { afterEach, expect, it, vi } from 'vitest'
-import { buildModelCatalog } from 'harness-test/catalog'
 import * as Plugin from '../src/index.ts'
 import * as Client from '../src/client/index.ts'
 import { Options } from '../src/config.ts'
@@ -52,11 +51,39 @@ function resourceFor(ctx: Context) {
     remote: {
       $on: (event, listener) => ctx.on(event, listener),
       llm: { discoverModels: (ns, request) => result(() => ctx.llm.discoverModels(ns, request)) },
-      session: { modelCatalog: () => result(() => buildModelCatalog(ctx, { provider: 'copilot-api', model: MODEL_ID })) },
     },
   })
   return resource
 }
+
+it('manually refreshes the gateway when the card omits its base URL', async () => {
+  const endpoint = await server()
+  vi.stubEnv('COPILOT_DISCOVERY_KEY', 'test-discovery-key')
+  const ctx = await host(endpoint)
+  expect(await ctx.llm.listModels('copilot-api')).toHaveLength(2)
+  expect(endpoint.requests).toHaveLength(1)
+  endpoint.models = { data: [{ id: 'new/model' }] }
+  const result = async operation => {
+    try { return { ok: true, value: await operation() } }
+    catch (error) { return { ok: false, error } }
+  }
+  let card
+  Client.apply({
+    effect: callback => callback(),
+    locale: { register: () => () => {}, bind: () => key => key },
+    resources: { register: () => () => {} },
+    slots: { inject: (_name, callback) => callback(), register: config => { card = config.inject(); return () => {} } },
+    remote: {
+      llm: {
+        discoverModels: (ns, request) => result(() => ctx.llm.discoverModels(ns, request)),
+        listConfigurableProviders: () => result(() => ctx.llm.listConfigurableProviders()),
+      },
+    },
+  })
+  expect(await card.refresh('copilot-api-provider')).toBeUndefined()
+  expect(endpoint.requests).toHaveLength(2)
+  expect(await ctx.llm.listModels('copilot-api')).toMatchObject([{ id: 'new/model' }])
+})
 
 it('stops HTTP retries from model-card invalidations after failure and recovers on explicit refresh', async () => {
   const endpoint = await server()

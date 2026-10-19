@@ -2,7 +2,7 @@ import React from "react"
 import type { Context } from "@deepseek-ai/cordis"
 import type {} from "@deepseek-ai/dsh-client-locale/client"
 import type {} from "@deepseek-ai/dsh-client-ui-renderer/client"
-import type { LlmDiscoveredModel, RemoteResult } from "@deepseek-ai/dsh-api-remotes/client"
+import type { LlmConfigurableProvider, LlmDiscoveredModel } from "@deepseek-ai/dsh-api-remotes/client"
 import type { ProviderCardExtrasOwnerProps } from "@deepseek-ai/dsh-client-ui-settings-models/client"
 import type { UseResource } from "@deepseek-ai/dsh-client-resources/client"
 
@@ -10,16 +10,12 @@ const h = React.createElement
 const namespace = "copilot-api-provider"
 const en = {
   title: "Discovered models", loading: "Loading models…", empty: "No models advertised.",
-  model: "Model", input: "Input", capacity: "Context / output", efforts: "Thinking levels",
-  text: "Text", image: "Image", unknown: "Not advertised", refresh: "Refresh models",
+  count: "Models discovered: {count}.", refresh: "Refresh models",
   apiKey: "API key", saveKey: "Save API key", savedKey: "API key saved securely.",
-  hint: "Thinking levels are available in the conversation model selector.",
+  hint: "Choose models and thinking levels in the conversation model selector.",
+  missingBaseURL: "No gateway URL is available. Save the provider connection settings before refreshing.",
 }
 type CopyKey = keyof typeof en
-interface DisplayModel extends LlmDiscoveredModel { readonly efforts: readonly string[] }
-interface CatalogModel { readonly id: string; readonly reasoning?: { readonly efforts: readonly { readonly id: string }[] } }
-interface CatalogGroup { readonly id: string; readonly models: readonly CatalogModel[] }
-interface CatalogFailure { readonly id: string; readonly message: string }
 interface ModelCardInjected {
   t: (key: CopyKey) => string
   refresh: (settingsNs: string, baseURL?: string) => Promise<string | undefined>
@@ -29,18 +25,15 @@ type ModelCardProps = ProviderCardExtrasOwnerProps & ModelCardInjected & { useRe
 
 declare module "@deepseek-ai/dsh-client-ui-slots" {
   interface LocaleNamespaceMap { "copilot-api-provider": CopyKey }
-  interface ResourceProtocolMap { "copilot-api-models": readonly DisplayModel[] }
-}
-declare module "@deepseek-ai/dsh-typert-protocol" {
-  interface RemoteErrorDetailsMap { "copilot-api/catalog": Record<string, never> }
+  interface ResourceProtocolMap { "copilot-api-models": readonly LlmDiscoveredModel[] }
 }
 
 const zh: Record<CopyKey, string> = {
   title: "自动发现的模型", loading: "正在加载模型…", empty: "尚未发现模型。",
-  model: "模型", input: "输入", capacity: "上下文 / 输出", efforts: "思考等级",
-  text: "文本", image: "图片", unknown: "未声明", refresh: "刷新模型",
+  count: "已发现 {count} 个模型。", refresh: "刷新模型",
   apiKey: "API 密钥", saveKey: "保存 API 密钥", savedKey: "API 密钥已安全保存。",
-  hint: "可在对话的模型选择器中选择下列思考等级。",
+  hint: "可在对话的模型选择器中选择模型和思考等级。",
+  missingBaseURL: "未找到网关地址，请先保存提供商连接配置再刷新。",
 }
 
 function ModelCard({ provider, useResource, t, refresh, storeKey }: ModelCardProps): React.ReactElement {
@@ -79,34 +72,8 @@ function ModelCard({ provider, useResource, t, refresh, storeKey }: ModelCardPro
     failure || state.failure ? h("p", { role: "alert" }, failure ?? state.failure?.message) : null,
     state.value === undefined ? h("p", { role: "status" }, t("loading"))
       : models.length === 0 ? h("p", null, t("empty"))
-        : h("table", { style: { width: "100%", textAlign: "start", borderSpacing: "8px" } },
-          h("thead", null, h("tr", null, ...(["model", "input", "capacity", "efforts"] as const).map(key => h("th", { key }, t(key))))),
-          h("tbody", null, ...models.map(model => h("tr", { key: model.id },
-            h("td", null, h("div", null, model.name), h("code", null, model.id)),
-            h("td", null, (model.inputModalities ?? []).map(value => t(value)).join(", ")),
-            h("td", null, `${model.contextWindow} / ${model.maxTokens}`),
-            h("td", null, model.efforts.length === 0 ? t("unknown") : model.efforts.join(", ")),
-          ))),
-        ),
+        : h("p", { role: "status" }, t("count").replace("{count}", String(models.length))),
   )
-}
-
-async function readModels(ctx: Context, settingsNs: string): Promise<RemoteResult<readonly DisplayModel[]>> {
-  const [discovery, catalog] = await Promise.all([
-    ctx.remote.llm.discoverModels(settingsNs, { provider: "copilot-api" }),
-    ctx.remote.session.modelCatalog(),
-  ])
-  if (!discovery.ok) return discovery
-  if (!catalog.ok) return catalog
-  const selectable = catalog.value.groups.find((group: CatalogGroup) => group.id === "copilot-api")
-  const failure = catalog.value.failures.find((group: CatalogFailure) => group.id === "copilot-api")
-  if (failure) return { ok: false, error: Object.assign(new Error(failure.message), {
-    name: "RemoteError", code: "copilot-api/catalog" as const, details: {}, isDSHRemoteError: true as const,
-  }) }
-  return { ok: true, value: discovery.value.map((model: LlmDiscoveredModel) => ({
-    ...model,
-    efforts: selectable?.models.find((item: CatalogModel) => item.id === model.id)?.reasoning?.efforts.map((effort: { id: string }) => effort.id) ?? [],
-  })) }
 }
 
 export function apply(ctx: Context): void {
@@ -129,7 +96,7 @@ export function apply(ctx: Context): void {
           if (!pending) await new Promise<void>(resolve => { wake = resolve })
           if (signal.aborted) break
           pending = false
-          yield await readModels(ctx, settingsNs)
+          yield await ctx.remote.llm.discoverModels(settingsNs, { provider: "copilot-api" })
         }
       } finally {
         signal.removeEventListener("abort", changed)
@@ -142,7 +109,14 @@ export function apply(ctx: Context): void {
     inject: (): ModelCardInjected => ({
       t: ctx.locale.bind(namespace),
       refresh: async (settingsNs, baseURL) => {
-        const result = await ctx.remote.llm.discoverModels(settingsNs, baseURL === undefined ? {} : { baseURL })
+        if (!baseURL?.trim()) {
+          const directory = await ctx.remote.llm.listConfigurableProviders()
+          if (!directory.ok) return directory.error.message
+          const endpoint = directory.value.find((entry: LlmConfigurableProvider) => entry.provider === "copilot-api" && entry.settingsNs === settingsNs)?.defaultBaseURL
+          if (!endpoint?.trim()) return ctx.locale.bind(namespace)("missingBaseURL")
+          baseURL = endpoint
+        }
+        const result = await ctx.remote.llm.discoverModels(settingsNs, { baseURL })
         return result.ok ? undefined : result.error.message
       },
       storeKey: async (ref, value) => {
@@ -153,4 +127,4 @@ export function apply(ctx: Context): void {
   }, ModelCard))
 }
 
-export const inject = ["slots", "locale", "resources", "remote", "remote.llm", "remote.session", "remote.credentials"]
+export const inject = ["slots", "locale", "resources", "remote", "remote.llm", "remote.credentials"]

@@ -2,7 +2,7 @@
 
 [中文](zh-CN/models.md)
 
-The Models card lists discovered model IDs, names, image capability, context and output capacity, and the exact efforts available in the conversation selector. Models are fetched on startup, on first use, and from **Refresh models**. `modelRefreshInterval` is in milliseconds and defaults to `120000` (automatic refresh every 2 minutes); set it to `0` to disable periodic refresh. A failed refresh keeps the last successful directory. An initial failure is cached so reading the model settings or selector does not repeatedly contact the gateway. Wait for the next periodic refresh, refresh explicitly, or update the credential to retry. Calls that are already prepared or running keep the models and transport settings they captured.
+The Models card shows the discovered model count and discovery status, with a **Refresh models** button. Choose models and thinking levels in the conversation model selector. Image capability, context and output capacity still come from discovery metadata. Models are fetched on startup, on first use, and from **Refresh models**. Manual refresh uses the saved gateway URL when the card does not provide one. `modelRefreshInterval` is in milliseconds and defaults to `120000` (automatic refresh every 2 minutes); set it to `0` to disable periodic refresh. A failed refresh keeps the last successful directory. An initial failure is cached so reading the model settings or selector does not repeatedly contact the gateway. Wait for the next periodic refresh, refresh explicitly, or update the credential to retry. Calls that are already prepared or running keep the models and transport settings they captured.
 
 | Gateway field | Harness/pi-ai metadata |
 | --- | --- |
