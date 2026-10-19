@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import React, { act } from "react"
 import { createRoot, type Root } from "react-dom/client"
+import { Context } from "@deepseek-ai/cordis"
 import { afterEach, expect, it, vi } from "vitest"
 
 let root: Root | undefined
@@ -52,10 +53,39 @@ async function browser(built = false) {
     },
   }
   plugin.apply(ctx)
-  return { ctx, resource, seat, Component, dictionaries, listeners, dispose, model,
+  return { plugin, ctx, get resource() { return resource }, get seat() { return seat }, Component, dictionaries, listeners, dispose, model,
     emit: event => { for (const listener of listeners.get(event) ?? []) listener() },
   }
 }
+
+it.each([false, true])("opens the model resource with real Cordis injection (built: %s)", async built => {
+  const client = await browser(built)
+  const ctx = new Context()
+  const controller = new AbortController()
+  let stream
+  try {
+    // Services must come from a sibling plugin: root-provided services bypass
+    // the injection guard that rejected ctx.remote in the shipped browser.
+    await ctx.plugin({ apply(provider) {
+      for (const name of ["slots", "locale", "resources", "remote"]) provider.reflect.provide(name, client.ctx[name])
+      for (const name of ["llm", "session", "credentials"]) provider.reflect.provide(`remote.${name}`, client.ctx.remote[name])
+    } })
+    await ctx.plugin(client.plugin)
+    stream = client.resource.open("dsh-resource://copilot-api-models/copilot-api-provider", { signal: controller.signal })
+    expect((await stream.next()).value).toMatchObject({ ok: true, value: [{ efforts: ["high", "max"], inputModalities: ["text", "image"] }] })
+    const card = client.seat.inject()
+    expect(await card.refresh("copilot-api-provider", "http://localhost:4141/v1")).toBeUndefined()
+    expect(await card.storeKey("GITHUB_COPILOT_API_KEY", "test-key")).toBeUndefined()
+    const waiting = stream.next()
+    client.emit("llm/adapters-updated")
+    expect((await waiting).value.ok).toBe(true)
+  } finally {
+    controller.abort()
+    await stream?.next()
+    await ctx.fiber.dispose()
+  }
+  expect([...client.listeners.values()].every(set => set.size === 0)).toBe(true)
+})
 
 it("loads the compiled Harness browser factory using only shared React", async () => {
   const { resource, seat, Component } = await browser(true)

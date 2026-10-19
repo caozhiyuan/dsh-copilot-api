@@ -153,4 +153,4 @@ export function apply(ctx: Context): void {
   }, ModelCard))
 }
 
-export const inject = ["slots", "locale", "resources", "remote.llm", "remote.session", "remote.credentials"]
+export const inject = ["slots", "locale", "resources", "remote", "remote.llm", "remote.session", "remote.credentials"]
