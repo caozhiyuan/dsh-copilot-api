@@ -11,7 +11,6 @@ const namespace = "copilot-api-provider"
 const en = {
   title: "Discovered models", loading: "Loading models…", empty: "No models advertised.",
   count: "Models discovered: {count}.", refresh: "Refresh models",
-  apiKey: "API key", saveKey: "Save API key", savedKey: "API key saved securely.",
   hint: "Choose models and thinking levels in the conversation model selector.",
   missingBaseURL: "No gateway URL is available. Save the provider connection settings before refreshing.",
 }
@@ -19,7 +18,6 @@ type CopyKey = keyof typeof en
 interface ModelCardInjected {
   t: (key: CopyKey) => string
   refresh: (settingsNs: string, baseURL?: string) => Promise<string | undefined>
-  storeKey: (ref: string, value: string) => Promise<string | undefined>
 }
 type ModelCardProps = ProviderCardExtrasOwnerProps & ModelCardInjected & { useResource: UseResource }
 
@@ -31,48 +29,37 @@ declare module "@deepseek-ai/dsh-client-ui-slots" {
 const zh: Record<CopyKey, string> = {
   title: "自动发现的模型", loading: "正在加载模型…", empty: "尚未发现模型。",
   count: "已发现 {count} 个模型。", refresh: "刷新模型",
-  apiKey: "API 密钥", saveKey: "保存 API 密钥", savedKey: "API 密钥已安全保存。",
   hint: "可在对话的模型选择器中选择模型和思考等级。",
   missingBaseURL: "未找到网关地址，请先保存提供商连接配置再刷新。",
 }
 
-function ModelCard({ provider, useResource, t, refresh, storeKey }: ModelCardProps): React.ReactElement {
+function ModelCard({ provider, useResource, t, refresh }: ModelCardProps): React.ReactElement {
   const state = useResource<"copilot-api-models">(`dsh-resource://copilot-api-models/${encodeURIComponent(provider.settingsNs)}`)
   const [failure, setFailure] = React.useState<string | undefined>()
   const [busy, setBusy] = React.useState(false)
-  const [key, setKey] = React.useState("")
-  const [saved, setSaved] = React.useState(false)
-  const keyRef = provider.nativeAuth?.env?.[0]
   const models = state.value ?? []
-  return h("section", { "aria-label": t("title"), style: { overflowX: "auto", paddingBlock: "12px" } },
-    h("h3", null, t("title")),
-    h("p", null, t("hint")),
-    keyRef === undefined ? null : h("form", { onSubmit: async (event: React.FormEvent<HTMLFormElement>) => {
-      event.preventDefault()
-      setBusy(true)
-      setSaved(false)
-      setFailure(undefined)
-      try {
-        const failure = await storeKey(keyRef, key)
-        setFailure(failure)
-        setSaved(failure === undefined)
-      } finally { setKey(""); setBusy(false) }
-    } },
-    h("label", null, t("apiKey"), " ", h("input", {
-      type: "password", autoComplete: "new-password", value: key, disabled: busy,
-      onChange: (event: React.ChangeEvent<HTMLInputElement>) => setKey(event.target.value),
-    })), " ", h("button", { type: "submit", disabled: busy || key.length === 0 }, t("saveKey"))),
-    saved ? h("p", { role: "status" }, t("savedKey")) : null,
-    h("button", { type: "button", disabled: busy, onClick: async () => {
+  const status = state.value === undefined ? t("loading")
+    : models.length === 0 ? t("empty")
+      : t("count").replace("{count}", String(models.length))
+  return h("section", { "aria-label": t("title"), style: { paddingTop: "8px" } },
+    h("div", { style: { display: "flex", alignItems: "center", flexWrap: "wrap", gap: "8px" } },
+      h("h3", { style: { margin: 0, fontSize: "0.95rem", lineHeight: "1.3" } }, t("title")),
+      h("span", {
+        role: "status",
+        style: {
+          border: "1px solid currentColor", borderRadius: "999px", fontSize: "0.8rem",
+          lineHeight: "1.45", opacity: 0.7, padding: "0 7px",
+        },
+      }, status),
+      h("button", { type: "button", disabled: busy, style: { marginLeft: "auto" }, onClick: async () => {
       setBusy(true)
       setFailure(undefined)
       try { setFailure(await refresh(provider.settingsNs, provider.defaultBaseURL)) }
       finally { setBusy(false) }
-    } }, t("refresh")),
+      } }, t("refresh")),
+    ),
+    h("p", { style: { margin: "4px 0 0", fontSize: "0.86rem", lineHeight: "1.4", opacity: 0.72 } }, t("hint")),
     failure || state.failure ? h("p", { role: "alert" }, failure ?? state.failure?.message) : null,
-    state.value === undefined ? h("p", { role: "status" }, t("loading"))
-      : models.length === 0 ? h("p", null, t("empty"))
-        : h("p", { role: "status" }, t("count").replace("{count}", String(models.length))),
   )
 }
 
@@ -119,12 +106,8 @@ export function apply(ctx: Context): void {
         const result = await ctx.remote.llm.discoverModels(settingsNs, { baseURL })
         return result.ok ? undefined : result.error.message
       },
-      storeKey: async (ref, value) => {
-        const result = await ctx.remote.credentials.set(ref, value)
-        return result.ok ? undefined : result.error.message
-      },
     }),
   }, ModelCard))
 }
 
-export const inject = ["slots", "locale", "resources", "remote", "remote.llm", "remote.credentials"]
+export const inject = ["slots", "locale", "resources", "remote", "remote.llm"]

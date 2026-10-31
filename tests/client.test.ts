@@ -45,7 +45,6 @@ async function browser(built = false) {
     },
     remote: {
       $on: subscribe,
-      credentials: { set: vi.fn(async () => ({ ok: true })) },
       llm: {
         discoverModels: vi.fn(async () => ({ ok: true, value: [model] })),
         listConfigurableProviders: vi.fn(async () => ({ ok: true, value: [{
@@ -70,7 +69,7 @@ it.each([false, true])("opens the model resource with real Cordis injection (bui
     // the injection guard that rejected ctx.remote in the shipped browser.
     await ctx.plugin({ apply(provider) {
       for (const name of ["slots", "locale", "resources", "remote"]) provider.reflect.provide(name, client.ctx[name])
-      for (const name of ["llm", "credentials"]) provider.reflect.provide(`remote.${name}`, client.ctx.remote[name])
+      provider.reflect.provide("remote.llm", client.ctx.remote.llm)
     } })
     await ctx.plugin(client.plugin)
     stream = client.resource.open("dsh-resource://copilot-api-models/copilot-api-provider", { signal: controller.signal })
@@ -79,7 +78,6 @@ it.each([false, true])("opens the model resource with real Cordis injection (bui
     expect(await card.refresh("copilot-api-provider", "http://localhost:4141/v1")).toBeUndefined()
     expect(await card.refresh("copilot-api-provider")).toBeUndefined()
     expect(client.ctx.remote.llm.listConfigurableProviders).toHaveBeenCalledOnce()
-    expect(await card.storeKey("GITHUB_COPILOT_API_KEY", "test-key")).toBeUndefined()
     const waiting = stream.next()
     client.emit("llm/adapters-updated")
     expect((await waiting).value.ok).toBe(true)
@@ -201,24 +199,17 @@ it("does not use another provider's endpoint when the namespace is missing", asy
   expect(ctx.remote.llm.discoverModels).not.toHaveBeenCalled()
 })
 
-it("saves keys only through Harness credentials and clears the password field", async () => {
-  const { ctx, seat, Component } = await browser()
+it("leaves credential entry to Harness and keeps the provider card compact", async () => {
+  const { seat, Component } = await browser()
   const node = document.createElement("div")
   root = createRoot(node)
   await act(async () => root?.render(React.createElement(Component, {
-    ...seat.inject(), provider: { settingsNs: "copilot-api-provider", nativeAuth: { env: ["GITHUB_COPILOT_API_KEY"] } },
+    ...seat.inject(), provider: { settingsNs: "copilot-api-provider" },
     useResource: () => ({ status: "live", value: [] }),
   })))
-  const input = node.querySelector("input")!
-  // Use the native setter so React observes a user edit rather than its value tracker.
-  await act(async () => {
-    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, "test-secret")
-    input.dispatchEvent(new Event("input", { bubbles: true }))
-  })
-  await act(async () => node.querySelector("form")!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })))
-  expect(ctx.remote.credentials.set).toHaveBeenCalledWith("GITHUB_COPILOT_API_KEY", "test-secret")
-  expect(input.value).toBe("")
-  expect(node.textContent).toContain("API key saved securely")
-  ctx.remote.credentials.set.mockResolvedValueOnce({ ok: false, error: { message: "Read-only credentials" } })
-  expect(await seat.inject().storeKey("GITHUB_COPILOT_API_KEY", "test-secret")).toBe("Read-only credentials")
+  expect(node.querySelector("input")).toBeNull()
+  expect(node.querySelector("form")).toBeNull()
+  expect(node.textContent).not.toContain("API key")
+  expect(seat.inject()).not.toHaveProperty("storeKey")
+  expect(node.querySelector("h3")?.nextElementSibling?.textContent).toBe("No models advertised.")
 })

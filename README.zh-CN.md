@@ -18,7 +18,7 @@ dsh plugin --profile web add dsh-copilot-api
 - `protocol`：`openai-responses`
 - 凭据引用：`GITHUB_COPILOT_API_KEY`
 
-在模型设置卡片中点击“保存 API 密钥”，或写入 Harness 凭据、同名启动环境。配置里只填引用名，不填密钥明文。
+把密钥写入 Harness 凭据，或设为同名启动环境变量。配置里只填引用名，不填密钥明文。
 
 使用 Messages 时，把 `protocol` 改为 `anthropic-messages`。
 

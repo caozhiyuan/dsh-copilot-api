@@ -18,7 +18,7 @@ Defaults:
 - `protocol`: `openai-responses`
 - credential reference: `GITHUB_COPILOT_API_KEY`
 
-Save the key in the Models card with **Save API key**, in Harness credentials, or in the launch environment of that name. Configuration stores the reference name, not the key.
+Store the key in Harness credentials or as a launch environment variable of that name. Configuration stores the reference name, not the key.
 
 Use `anthropic-messages` as `protocol` for Messages.
 
