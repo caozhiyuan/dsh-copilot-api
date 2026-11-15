@@ -14,11 +14,20 @@ dsh plugin --profile web add dsh-copilot-api
 
 默认值：
 
-- `baseURL`：`http://localhost:4141`（可以带 `/v1`，也可以不带）
+- `baseURL`：优先使用 `COPILOT_API_BASE_URL`，未设置时为 `http://localhost:4141`（可以带 `/v1`，也可以不带）。profile 显式配置优先。
 - `protocol`：`openai-responses`
 - 凭据引用：`GITHUB_COPILOT_API_KEY`
 
 把密钥写入 Harness 凭据，或设为同名启动环境变量。配置里只填引用名，不填密钥明文。
+
+Harness 也会加载 `$DSH_HOME/.env`（默认 `~/.dsh/.env`），例如：
+
+```dotenv
+COPILOT_API_BASE_URL=http://localhost:4141
+GITHUB_COPILOT_API_KEY=dummy
+```
+
+启用网关鉴权时将 `dummy` 换成网关 API Key，然后重启 Harness。启动环境变量和 Harness 已保存的凭据优先于 `.env`。
 
 使用 Messages 时，把 `protocol` 改为 `anthropic-messages`。
 

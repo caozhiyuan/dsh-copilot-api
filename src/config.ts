@@ -48,7 +48,7 @@ const effortMap = z.object(Object.fromEntries(levels.map(level => [level, z.stri
 
 // Secrets belong in Harness credentials, never in cordis.yml/cordis.patch.yml.
 const fields = {
-  baseURL: z.string().default("http://localhost:4141"),
+  baseURL: z.string().default(process.env.COPILOT_API_BASE_URL || "http://localhost:4141"),
   apiKey: z.string().role("credential-ref"),
   apiKeyEnv: z.string().role("credential-ref"),
   protocol: z.union(["openai-responses", "anthropic-messages"]).default("openai-responses"),
