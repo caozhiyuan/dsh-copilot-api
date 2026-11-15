@@ -14,11 +14,20 @@ Restart Harness after the first install. The package inserts entry `copilot-api-
 
 Defaults:
 
-- `baseURL`: `http://localhost:4141` (with or without `/v1`)
+- `baseURL`: `COPILOT_API_BASE_URL`, or `http://localhost:4141` when unset (with or without `/v1`). An explicit profile setting takes precedence.
 - `protocol`: `openai-responses`
 - credential reference: `GITHUB_COPILOT_API_KEY`
 
 Store the key in Harness credentials or as a launch environment variable of that name. Configuration stores the reference name, not the key.
+
+Harness also loads `$DSH_HOME/.env` (`~/.dsh/.env` by default). For example:
+
+```dotenv
+COPILOT_API_BASE_URL=http://localhost:4141
+GITHUB_COPILOT_API_KEY=dummy
+```
+
+Replace `dummy` with a gateway API key when authentication is enabled, then restart Harness. Inherited environment variables and saved Harness credentials take precedence over `.env`.
 
 Use `anthropic-messages` as `protocol` for Messages.
 
